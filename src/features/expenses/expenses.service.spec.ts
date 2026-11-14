@@ -24,7 +24,7 @@ describe('ExpensesService', () => {
       description: 'Dinner',
       amount: 25,
       currency: 'USD' as const,
-      categoryId: 'food',
+      categoryId: '507f1f77bcf86cd799439011',
     };
 
     const created = service.createExpense(newExpense);
@@ -37,14 +37,14 @@ describe('ExpensesService', () => {
       description: 'Coffee',
       amount: 6.5,
       currency: 'USD',
-      categoryId: 'food',
+      categoryId: '507f1f77bcf86cd799439011',
     } as CreateExpenseDto);
 
     const secondExpense = service.createExpense({
       description: 'Lunch',
       amount: 18,
       currency: 'USD',
-      categoryId: 'food',
+      categoryId: '507f1f77bcf86cd799439011',
     } as CreateExpenseDto);
 
     expect(firstExpense.id).toBeDefined();
@@ -86,7 +86,7 @@ describe('ExpensesService', () => {
       description: 'Updated lunch',
       amount: 15,
       currency: 'USD',
-      categoryId: 'food',
+      categoryId: '507f1f77bcf86cd799439011',
     });
   });
 

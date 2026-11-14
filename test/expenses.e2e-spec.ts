@@ -45,7 +45,7 @@ describe('ExpensesController (e2e)', () => {
       description: 'Dinner',
       amount: 25,
       currency: 'USD',
-      categoryId: 'food',
+      categoryId: '507f1f77bcf86cd799439011',
     };
 
     const response = await request(app.getHttpServer())
@@ -64,7 +64,7 @@ describe('ExpensesController (e2e)', () => {
       description: 'Dinner',
       amount: 'number instead of string',
       currency: 'USD',
-      categoryId: 'food',
+      categoryId: '507f1f77bcf86cd799439011',
     };
 
     await request(app.getHttpServer())
@@ -78,7 +78,7 @@ describe('ExpensesController (e2e)', () => {
       description: 'Dinner',
       amount: 25,
       currency: 'USD',
-      categoryId: 'food',
+      categoryId: '507f1f77bcf86cd799439011',
       extra: 'not allowed',
     };
 
@@ -132,7 +132,7 @@ describe('ExpensesController (e2e)', () => {
       description: 'Test expense',
       amount: 50,
       currency: 'PLN',
-      categoryId: 'food',
+      categoryId: '507f1f77bcf86cd799439011',
     };
 
     const createResponse = await request(app.getHttpServer())
@@ -175,7 +175,7 @@ describe('ExpensesController (e2e)', () => {
         description: 'Original description',
         amount: 50,
         currency: 'PLN',
-        categoryId: 'food',
+        categoryId: '507f1f77bcf86cd799439011',
       })
       .expect(201);
 
@@ -195,7 +195,7 @@ describe('ExpensesController (e2e)', () => {
       description: 'Updated description',
       amount: 50,
       currency: 'PLN',
-      categoryId: 'food',
+      categoryId: '507f1f77bcf86cd799439011',
     });
   });
 
@@ -206,7 +206,7 @@ describe('ExpensesController (e2e)', () => {
         description: 'Expense to delete',
         amount: 20,
         currency: 'EUR',
-        categoryId: 'food',
+        categoryId: '507f1f77bcf86cd799439011',
       })
       .expect(201);
 

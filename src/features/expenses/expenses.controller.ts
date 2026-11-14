@@ -18,32 +18,31 @@ import { UpdateExpenseDto } from './dto/update-expense.dto.js';
 export class ExpensesController {
   constructor(private readonly expensesService: ExpensesService) {}
   @Get()
-  findAll(): Expense[] {
+  findAll(): Promise<Expense[]> {
     return this.expensesService.findAll();
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string): Expense {
+  findOne(@Param('id') id: string): Promise<Expense> {
     return this.expensesService.findOne(id);
   }
 
   @Post()
-  create(@Body() createExpenseDto: CreateExpenseDto): CreateExpenseDto {
-    return this.expensesService.createExpense(createExpenseDto as Expense);
+  create(@Body() createExpenseDto: CreateExpenseDto): Promise<Expense> {
+    return this.expensesService.createExpense(createExpenseDto);
   }
 
   @Patch(':id')
   update(
     @Param('id') id: string,
     @Body() updateExpenseDto: UpdateExpenseDto,
-  ): Expense {
-    // Implement the update logic here
+  ): Promise<Expense> {
     return this.expensesService.update(id, updateExpenseDto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  delete(@Param('id') id: string): void {
-    this.expensesService.delete(id);
+  delete(@Param('id') id: string): Promise<void> {
+    return this.expensesService.delete(id);
   }
 }

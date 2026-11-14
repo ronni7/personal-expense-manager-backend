@@ -1,5 +1,6 @@
 import {
   IsIn,
+  IsMongoId,
   IsNotEmpty,
   IsNumber,
   IsPositive,
@@ -22,7 +23,6 @@ export class CreateExpenseDto {
   @IsNotEmpty()
   currency: 'PLN' | 'EUR' | 'USD';
 
-  @IsString()
-  @IsNotEmpty()
+  @IsMongoId()
   categoryId: string;
 }

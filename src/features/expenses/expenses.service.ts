@@ -1,80 +1,150 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Expense } from './model/expense.model.js';
 import { randomUUID } from 'crypto';
 import { CreateExpenseDto } from './dto/create-expense.dto.js';
 import { UpdateExpenseDto } from './dto/update-expense.dto.js';
 
+import { InjectModel } from '@nestjs/mongoose';
+import mongoose, { HydratedDocument, Types, type Model } from 'mongoose';
+import { ExpenseRecord } from './schemas/expense.schema.js';
+
 @Injectable()
 export class ExpensesService {
-  private expenses: Expense[] = [
-    {
-      id: '1',
-      description: 'Lunch',
-      amount: 15,
-      currency: 'USD',
-      categoryId: 'food',
-    },
-    {
-      id: '2',
-      description: 'Taxi',
-      amount: 30,
-      currency: 'EUR',
-      categoryId: 'transport',
-    },
-    {
-      id: '3',
-      description: 'Groceries',
-      amount: 50,
-      currency: 'PLN',
-      categoryId: 'food',
-    },
-  ];
+  constructor(
+    @InjectModel(ExpenseRecord.name)
+    private readonly expenseModel: Model<ExpenseRecord>,
+  ) {}
 
-  findAll(): Expense[] {
-    return this.expenses;
+  async findAll(): Promise<Expense[]> {
+    const documents = await this.expenseModel.find().exec();
+
+    return documents.map((document) => this.toExpense(document));
   }
 
-  findOne(id: string): Expense {
-    const expense = this.expenses.find((expense) => expense.id === id);
-    if (!expense) {
-      throw new NotFoundException(`Expense not found`);
+  async findOne(id: string): Promise<Expense> {
+    this.validateObjectId(id);
+
+    const document = await this.expenseModel.findById(id).exec();
+
+    if (!document) {
+      throw new NotFoundException('Expense not found');
     }
-    return expense;
+
+    return this.toExpense(document);
   }
 
-  createExpense(expenseDTO: CreateExpenseDto): Expense {
+  async createExpense(expenseDTO: CreateExpenseDto): Promise<Expense> {
     if (expenseDTO?.amount <= 0) {
       throw new Error('Amount must be a positive number');
     }
-    const expenseId = randomUUID();
-    const expense = { id: expenseId, ...expenseDTO } as Expense;
-    this.expenses = [...this.expenses, expense];
-    return expense;
+    // const expenseId = randomUUID(); ?
+
+    const document = await this.expenseModel.create({
+      description: expenseDTO.description,
+      amount: Types.Decimal128.fromString(expenseDTO.amount.toString()),
+      currency: expenseDTO.currency,
+      categoryId: new Types.ObjectId(expenseDTO.categoryId),
+    });
+
+    return this.toExpense(document);
   }
 
-  update(id: string, updateExpenseDto: UpdateExpenseDto): Expense {
-    const expenseIndex = this.expenses.findIndex(
-      (expense) => expense.id === id,
-    );
-    if (expenseIndex === -1) {
-      throw new NotFoundException(`Expense not found`);
+  async update(
+    id: string,
+    updateExpenseDto: UpdateExpenseDto,
+  ): Promise<Expense> {
+    this.validateObjectId(id);
+
+    if (Object.keys(updateExpenseDto).length === 0) {
+      throw new BadRequestException('At least one field must be provided');
     }
 
-    const updatedExpense: Expense = {
-      ...this.expenses[expenseIndex],
-      ...updateExpenseDto,
+    const update: Partial<ExpenseRecord> =
+      this.mapPayloadToExpenseRecord(updateExpenseDto);
+
+    if (updateExpenseDto.amount !== undefined) {
+      update.amount = Types.Decimal128.fromString(
+        updateExpenseDto.amount.toString(),
+      );
+    }
+
+    if (updateExpenseDto.currency !== undefined) {
+      update.currency = updateExpenseDto.currency;
+    }
+
+    if (updateExpenseDto.categoryId !== undefined) {
+      update.categoryId = new Types.ObjectId(updateExpenseDto.categoryId);
+    }
+
+    const document = await this.expenseModel
+      .findByIdAndUpdate(
+        id,
+        { $set: update },
+        {
+          new: true,
+          runValidators: true,
+        },
+      )
+      .exec();
+
+    if (!document) {
+      throw new NotFoundException('Expense not found');
+    }
+
+    return this.toExpense(document);
+  }
+
+  async delete(id: string): Promise<void> {
+    this.validateObjectId(id);
+
+    const document = await this.expenseModel.findByIdAndDelete(id).exec();
+
+    if (!document) {
+      throw new NotFoundException('Expense not found');
+    }
+  }
+
+  private validateObjectId(id: string): void {
+    if (!mongoose.isObjectIdOrHexString(id)) {
+      throw new BadRequestException('Invalid expense ID');
+    }
+  }
+
+  private toExpense(document: HydratedDocument<ExpenseRecord>): Expense {
+    return {
+      id: document._id.toString(),
+      description: document.description,
+      amount: Number(document.amount.toString()),
+      currency: document.currency,
+      categoryId: document.categoryId.toString(),
     };
-    this.expenses[expenseIndex] = updatedExpense;
-    return updatedExpense;
   }
 
-  delete(id: string): void {
-    const expenseIndex = this.expenses.findIndex(
-      (expense) => expense.id === id,
-    );
-    if (expenseIndex === -1) {
-      throw new NotFoundException(`Expense not found`);
+  private mapPayloadToExpenseRecord(
+    dto: UpdateExpenseDto,
+  ): Partial<ExpenseRecord> {
+    const update: Partial<ExpenseRecord> = {};
+
+    if (dto.description !== undefined) {
+      update.description = dto.description;
     }
-    this.expenses.splice(expenseIndex, 1);
+
+    if (dto.amount !== undefined) {
+      update.amount = Types.Decimal128.fromString(dto.amount.toString());
+    }
+
+    if (dto.currency !== undefined) {
+      update.currency = dto.currency;
+    }
+
+    if (dto.categoryId !== undefined) {
+      update.categoryId = new Types.ObjectId(dto.categoryId);
+    }
+
+    return update;
   }
 }

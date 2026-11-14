@@ -15,7 +15,7 @@ describe('ExpensesController', () => {
       description: 'Groceries',
       amount: 10,
       currency: 'USD',
-      categoryId: 'food',
+      categoryId: '507f1f77bcf86cd799439011',
     },
     {
       id: '2',
@@ -58,7 +58,7 @@ describe('ExpensesController', () => {
         description: 'Dinner',
         amount: 25,
         currency: 'USD',
-        categoryId: 'food',
+        categoryId: '507f1f77bcf86cd799439011',
       };
       const createdExpense = { id: '3', ...newExpense };
       expensesService.createExpense.mockReturnValue(createdExpense);
