@@ -3,11 +3,15 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
+import { Model } from 'mongoose';
+import { getModelToken } from '@nestjs/mongoose';
+import { ExpenseRecord } from '../src/features/expenses/schemas/expense.schema.js';
 
 describe('ExpensesController (e2e)', () => {
   let app: INestApplication<App>;
+  let expenseModel: Model<ExpenseRecord>;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -23,6 +27,21 @@ describe('ExpensesController (e2e)', () => {
     );
 
     await app.init();
+    expenseModel = app.get<Model<ExpenseRecord>>(
+      getModelToken(ExpenseRecord.name),
+    );
+
+    if (expenseModel.db.name !== 'pem_test') {
+      await app.close();
+
+      throw new Error(
+        `E2E tests must use pem_test, but connected to "${expenseModel.db.name}"`,
+      );
+    }
+  });
+
+  beforeEach(async () => {
+    await expenseModel.deleteMany({}).exec();
   });
 
   it('GET /expenses returns 200', async () => {
@@ -31,13 +50,7 @@ describe('ExpensesController (e2e)', () => {
       .expect(200);
 
     expect(Array.isArray(response.body)).toBe(true);
-    expect(response.body.length).toBeGreaterThan(0);
-    expect(response.body[0]).toMatchObject({
-      description: expect.any(String),
-      amount: expect.any(Number),
-      currency: expect.any(String),
-      categoryId: expect.any(String),
-    });
+    expect(response.body.length).toEqual(0);
   });
 
   it('POST /expenses creates an expense', async () => {
@@ -45,7 +58,7 @@ describe('ExpensesController (e2e)', () => {
       description: 'Dinner',
       amount: 25,
       currency: 'USD',
-      categoryId: '507f1f77bcf86cd799439011',
+      categoryId: '6afb0d37a042d0237cdf4533',
     };
 
     const response = await request(app.getHttpServer())
@@ -64,7 +77,7 @@ describe('ExpensesController (e2e)', () => {
       description: 'Dinner',
       amount: 'number instead of string',
       currency: 'USD',
-      categoryId: '507f1f77bcf86cd799439011',
+      categoryId: '6afb0d37a042d0237cdf4533',
     };
 
     await request(app.getHttpServer())
@@ -78,7 +91,7 @@ describe('ExpensesController (e2e)', () => {
       description: 'Dinner',
       amount: 25,
       currency: 'USD',
-      categoryId: '507f1f77bcf86cd799439011',
+      categoryId: '6afb0d37a042d0237cdf4533',
       extra: 'not allowed',
     };
 
@@ -88,12 +101,26 @@ describe('ExpensesController (e2e)', () => {
       .expect(400);
   });
 
+  it('POST /expenses rejects negative amount', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/expenses')
+      .send({
+        description: 'Taxi',
+        amount: -10,
+        currency: 'USD',
+        categoryId: '6afb0d37a042d0237cdf4533',
+      })
+      .expect(400);
+
+    expect(response.body.message).toContain('amount must be a positive number');
+  });
+
   it('POSTed expense is present in the next GET request', async () => {
     const newExpense = {
       description: 'Hotel',
       amount: 120,
       currency: 'USD',
-      categoryId: 'travel',
+      categoryId: '6afb0d37a042d0237cdf4533',
     };
 
     const createdResponse = await request(app.getHttpServer())
@@ -121,7 +148,7 @@ describe('ExpensesController (e2e)', () => {
         description: 'Taxi',
         amount: 20,
         currency: 'BTC',
-        categoryId: 'transport',
+        categoryId: '6afb0d37a042d0237cdf4533',
       })
       .expect(400);
   });
@@ -132,7 +159,7 @@ describe('ExpensesController (e2e)', () => {
       description: 'Test expense',
       amount: 50,
       currency: 'PLN',
-      categoryId: '507f1f77bcf86cd799439011',
+      categoryId: '6afb0d37a042d0237cdf4533',
     };
 
     const createResponse = await request(app.getHttpServer())
@@ -158,8 +185,7 @@ describe('ExpensesController (e2e)', () => {
   });
 
   it('GET /expenses/:id returns 404 when expense does not exist', async () => {
-    // Act: use unexisting id
-    const nonExistingId = 'non-existing-expense-id';
+    const nonExistingId = '6afb0d37a042d0237cdf4533'; // Assuming this ID does not exist in the test database
 
     // Assert: 404 not found
     await request(app.getHttpServer())
@@ -175,7 +201,7 @@ describe('ExpensesController (e2e)', () => {
         description: 'Original description',
         amount: 50,
         currency: 'PLN',
-        categoryId: '507f1f77bcf86cd799439011',
+        categoryId: '6afb0d37a042d0237cdf4533',
       })
       .expect(201);
 
@@ -195,7 +221,7 @@ describe('ExpensesController (e2e)', () => {
       description: 'Updated description',
       amount: 50,
       currency: 'PLN',
-      categoryId: '507f1f77bcf86cd799439011',
+      categoryId: '6afb0d37a042d0237cdf4533',
     });
   });
 
@@ -206,7 +232,7 @@ describe('ExpensesController (e2e)', () => {
         description: 'Expense to delete',
         amount: 20,
         currency: 'EUR',
-        categoryId: '507f1f77bcf86cd799439011',
+        categoryId: '6afb0d37a042d0237cdf4533',
       })
       .expect(201);
 
@@ -217,7 +243,8 @@ describe('ExpensesController (e2e)', () => {
     await request(app.getHttpServer()).get(`/expenses/${id}`).expect(404);
   });
 
-  afterEach(async () => {
+  afterAll(async () => {
+    await expenseModel.deleteMany({}).exec();
     await app.close();
   });
 });
