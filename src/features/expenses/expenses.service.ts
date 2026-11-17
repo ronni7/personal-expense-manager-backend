@@ -3,13 +3,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Expense } from './model/expense.model.js';
-import { randomUUID } from 'crypto';
 import { CreateExpenseDto } from './dto/create-expense.dto.js';
 import { UpdateExpenseDto } from './dto/update-expense.dto.js';
+import { Expense } from './model/expense.model.js';
 
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { HydratedDocument, Types, type Model } from 'mongoose';
+import { CategoriesService } from '../categories/categories.service.js';
 import { ExpenseRecord } from './schemas/expense.schema.js';
 
 @Injectable()
@@ -17,6 +17,7 @@ export class ExpensesService {
   constructor(
     @InjectModel(ExpenseRecord.name)
     private readonly expenseModel: Model<ExpenseRecord>,
+    private readonly categoriesService: CategoriesService,
   ) {}
 
   async findAll(): Promise<Expense[]> {
@@ -38,10 +39,24 @@ export class ExpensesService {
   }
 
   async createExpense(expenseDTO: CreateExpenseDto): Promise<Expense> {
-    if (expenseDTO?.amount <= 0) {
-      throw new Error('Amount must be a positive number');
+    if (expenseDTO.amount <= 0) {
+      throw new BadRequestException('Amount must be a positive number');
     }
-    // const expenseId = randomUUID(); ?
+
+    if (expenseDTO.categoryId != undefined) {
+      const exists = await this.categoriesService.exists(expenseDTO.categoryId);
+
+      if (!exists) {
+        throw new BadRequestException('Category does not exist');
+      }
+    }
+    const categoryExists = await this.categoriesService.exists(
+      expenseDTO.categoryId,
+    );
+
+    if (!categoryExists) {
+      throw new BadRequestException('Category does not exist');
+    }
 
     const document = await this.expenseModel.create({
       description: expenseDTO.description,
@@ -59,25 +74,21 @@ export class ExpensesService {
   ): Promise<Expense> {
     this.validateObjectId(id);
 
-    if (Object.keys(updateExpenseDto).length === 0) {
-      throw new BadRequestException('At least one field must be provided');
+    if (updateExpenseDto.categoryId != undefined) {
+      const exists = await this.categoriesService.exists(
+        updateExpenseDto.categoryId,
+      );
+
+      if (!exists) {
+        throw new BadRequestException('Category does not exist');
+      }
     }
 
     const update: Partial<ExpenseRecord> =
       this.mapPayloadToExpenseRecord(updateExpenseDto);
 
-    if (updateExpenseDto.amount !== undefined) {
-      update.amount = Types.Decimal128.fromString(
-        updateExpenseDto.amount.toString(),
-      );
-    }
-
-    if (updateExpenseDto.currency !== undefined) {
-      update.currency = updateExpenseDto.currency;
-    }
-
-    if (updateExpenseDto.categoryId !== undefined) {
-      update.categoryId = new Types.ObjectId(updateExpenseDto.categoryId);
+    if (Object.keys(updateExpenseDto).length === 0) {
+      throw new BadRequestException('At least one field must be provided');
     }
 
     const document = await this.expenseModel
@@ -129,19 +140,19 @@ export class ExpensesService {
   ): Partial<ExpenseRecord> {
     const update: Partial<ExpenseRecord> = {};
 
-    if (dto.description !== undefined) {
+    if (dto.description != undefined) {
       update.description = dto.description;
     }
 
-    if (dto.amount !== undefined) {
+    if (dto.amount != undefined) {
       update.amount = Types.Decimal128.fromString(dto.amount.toString());
     }
 
-    if (dto.currency !== undefined) {
+    if (dto.currency != undefined) {
       update.currency = dto.currency;
     }
 
-    if (dto.categoryId !== undefined) {
+    if (dto.categoryId != undefined) {
       update.categoryId = new Types.ObjectId(dto.categoryId);
     }
 

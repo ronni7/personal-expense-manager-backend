@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Schema as MongooseSchema, Types } from 'mongoose';
 import type { HydratedDocument } from 'mongoose';
+import { CategoryRecord } from '../../categories/schemas/category.schema.js';
 
 export type ExpenseDocument = HydratedDocument<ExpenseRecord>;
 
@@ -33,7 +34,7 @@ export class ExpenseRecord {
 
   @Prop({
     type: MongooseSchema.Types.ObjectId,
-    ref: 'Category',
+    ref: CategoryRecord.name,
     required: true,
     index: true,
   })

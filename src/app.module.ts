@@ -4,6 +4,7 @@ import { AppService } from './app.service.js';
 import { ExpensesModule } from './features/expenses/expenses.module.js';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { CategoriesModule } from './features/categories/categories.module.js';
 
 @Module({
   imports: [
@@ -26,6 +27,8 @@ import { MongooseModule } from '@nestjs/mongoose';
         return { uri };
       },
     }),
+
+    CategoriesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
