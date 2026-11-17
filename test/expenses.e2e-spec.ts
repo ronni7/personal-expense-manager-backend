@@ -10,7 +10,14 @@ import { ExpenseRecord } from '../src/features/expenses/schemas/expense.schema.j
 describe('ExpensesController (e2e)', () => {
   let app: INestApplication<App>;
   let expenseModel: Model<ExpenseRecord>;
+  async function createCategory(name = 'Food') {
+    const response = await request(app.getHttpServer())
+      .post('/categories')
+      .send({ name })
+      .expect(201);
 
+    return response.body;
+  }
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -54,11 +61,13 @@ describe('ExpensesController (e2e)', () => {
   });
 
   it('POST /expenses creates an expense', async () => {
+    const categoryResponse = await createCategory();
+
     const newExpense = {
       description: 'Dinner',
       amount: 25,
       currency: 'USD',
-      categoryId: '6afb0d37a042d0237cdf4533',
+      categoryId: categoryResponse.id,
     };
 
     const response = await request(app.getHttpServer())
@@ -116,11 +125,13 @@ describe('ExpensesController (e2e)', () => {
   });
 
   it('POSTed expense is present in the next GET request', async () => {
+    const categoryResponse = await createCategory();
+
     const newExpense = {
       description: 'Hotel',
       amount: 120,
       currency: 'USD',
-      categoryId: '6afb0d37a042d0237cdf4533',
+      categoryId: categoryResponse.id,
     };
 
     const createdResponse = await request(app.getHttpServer())
@@ -154,12 +165,13 @@ describe('ExpensesController (e2e)', () => {
   });
 
   it('GET /expenses/:id returns an existing expense', async () => {
-    // Arrange: fetch existing expense by id
+    // Arrange: add categories and fetch existing expense by id
+    const categoryResponse = await createCategory();
     const expense = {
       description: 'Test expense',
       amount: 50,
       currency: 'PLN',
-      categoryId: '6afb0d37a042d0237cdf4533',
+      categoryId: categoryResponse.id,
     };
 
     const createResponse = await request(app.getHttpServer())
@@ -195,13 +207,15 @@ describe('ExpensesController (e2e)', () => {
 
   it('PATCH /expenses/:id updates only provided fields', async () => {
     // Arrange - create an expense
+    const categoryResponse = await createCategory();
+
     const createResponse = await request(app.getHttpServer())
       .post('/expenses')
       .send({
         description: 'Original description',
         amount: 50,
         currency: 'PLN',
-        categoryId: '6afb0d37a042d0237cdf4533',
+        categoryId: categoryResponse.id,
       })
       .expect(201);
 
@@ -221,18 +235,20 @@ describe('ExpensesController (e2e)', () => {
       description: 'Updated description',
       amount: 50,
       currency: 'PLN',
-      categoryId: '6afb0d37a042d0237cdf4533',
+      categoryId: categoryResponse.id,
     });
   });
 
   it('DELETE /expenses/:id removes an expense', async () => {
+    const categoryResponse = await createCategory();
+
     const createResponse = await request(app.getHttpServer())
       .post('/expenses')
       .send({
         description: 'Expense to delete',
         amount: 20,
         currency: 'EUR',
-        categoryId: '6afb0d37a042d0237cdf4533',
+        categoryId: categoryResponse.id,
       })
       .expect(201);
 

@@ -7,15 +7,20 @@ import { UpdateExpenseDto } from './dto/update-expense.dto.js';
 import { ExpensesService } from './expenses.service.js';
 import { ExpenseRecord } from './schemas/expense.schema.js';
 import { CreateExpenseDto } from './dto/create-expense.dto.js';
+import { CategoriesService } from '../categories/categories.service.js';
 
 const createMockExpense = () =>
   ({
     _id: new Types.ObjectId('507f1f77bcf86cd799439011'),
     description: 'Lunch',
-    amount: Types.Decimal128.fromString('15.50'),
+    amount: Types.Decimal128.fromString('15'),
     currency: 'PLN',
     categoryId: new Types.ObjectId('507f1f77bcf86cd799439012'),
   }) as unknown as HydratedDocument<ExpenseRecord>;
+
+const mockCategoriesService = {
+  exists: vi.fn().mockResolvedValue(true),
+};
 
 let expenseModelMock = {
   find: vi.fn(),
@@ -31,6 +36,8 @@ describe('ExpensesService', () => {
   let service: ExpensesService;
 
   beforeEach(async () => {
+    mockCategoriesService.exists.mockReset();
+    mockCategoriesService.exists.mockResolvedValue(true);
     expenseModelMock = {
       find: vi.fn(),
       findById: vi.fn(),
@@ -45,6 +52,10 @@ describe('ExpensesService', () => {
         {
           provide: getModelToken(ExpenseRecord.name),
           useValue: expenseModelMock,
+        },
+        {
+          provide: CategoriesService,
+          useValue: mockCategoriesService,
         },
       ],
     }).compile();
@@ -79,7 +90,7 @@ describe('ExpensesService', () => {
       {
         id: document._id.toString(),
         description: 'Lunch',
-        amount: 15.5,
+        amount: 15,
         currency: 'PLN',
         categoryId: document.categoryId.toString(),
       },
@@ -121,7 +132,13 @@ describe('ExpensesService', () => {
       categoryId: '507f1f77bcf86cd799439012',
     };
 
-    const document = createMockExpense();
+    const document = {
+      _id: new Types.ObjectId(),
+      description: dto.description,
+      amount: Types.Decimal128.fromString(dto.amount.toString()),
+      currency: dto.currency,
+      categoryId: new Types.ObjectId(dto.categoryId),
+    } as unknown as HydratedDocument<ExpenseRecord>;
 
     expenseModelMock.create.mockResolvedValue(document);
 
@@ -129,29 +146,65 @@ describe('ExpensesService', () => {
 
     expect(expenseModelMock.create).toHaveBeenCalledOnce();
 
-    expect(result).toMatchObject({
-      id: document._id.toString(),
-      description: 'Lunch',
-      amount: 15.5,
+    expect(expenseModelMock.create).toHaveBeenCalledWith({
+      description: dto.description,
+      amount: Types.Decimal128.fromString('25'),
+      currency: 'USD',
+      categoryId: new Types.ObjectId(dto.categoryId),
     });
 
-    const createPayload = expenseModelMock.create.mock.calls[0][0];
+    expect(result).toEqual({
+      id: document._id.toString(),
+      description: 'Dinner',
+      amount: 25,
+      currency: 'USD',
+      categoryId: dto.categoryId,
+    });
+  });
 
-    expect(createPayload.amount).toBeInstanceOf(Types.Decimal128);
+  it('should not create expense when category does not exist', async () => {
+    const dto: CreateExpenseDto = {
+      description: 'Dinner',
+      amount: 25,
+      currency: 'USD',
+      categoryId: '507f1f77bcf86cd799439012',
+    };
 
-    expect(createPayload.amount.toString()).toBe('25');
+    mockCategoriesService.exists.mockResolvedValue(false);
 
-    expect(createPayload.categoryId.toString()).toBe(
-      '507f1f77bcf86cd799439012',
+    await expect(service.createExpense(dto)).rejects.toThrow(
+      BadRequestException,
     );
+
+    expect(mockCategoriesService.exists).toHaveBeenCalledWith(dto.categoryId);
+    expect(expenseModelMock.create).not.toHaveBeenCalled();
+  });
+
+  it('should reject non-positive expense amount', async () => {
+    const dto: CreateExpenseDto = {
+      description: 'Dinner',
+      amount: 0,
+      currency: 'USD',
+      categoryId: '507f1f77bcf86cd799439012',
+    };
+
+    await expect(service.createExpense(dto)).rejects.toThrow(
+      BadRequestException,
+    );
+
+    expect(mockCategoriesService.exists).not.toHaveBeenCalled();
+    expect(expenseModelMock.create).not.toHaveBeenCalled();
   });
 
   it('should update an expense', async () => {
     const id = '507f1f77bcf86cd799439011';
-    const document = createMockExpense();
 
     const dto: UpdateExpenseDto = {
       description: 'Updated lunch',
+    };
+    const document = {
+      ...createMockExpense(),
+      description: dto.description,
     };
 
     expenseModelMock.findByIdAndUpdate.mockReturnValue(mockQuery(document));
@@ -170,9 +223,25 @@ describe('ExpensesService', () => {
         runValidators: true,
       },
     );
-
+    expect(result.description).toBe('Updated lunch');
+    expect(mockCategoriesService.exists).not.toHaveBeenCalled();
     expect(result.id).toBe(id);
   });
+
+  it('should not update expense when category does not exist', async () => {
+    const expenseId = '507f1f77bcf86cd799439011';
+    const categoryId = '507f1f77bcf86cd799439012';
+
+    mockCategoriesService.exists.mockResolvedValue(false);
+
+    await expect(service.update(expenseId, { categoryId })).rejects.toThrow(
+      BadRequestException,
+    );
+
+    expect(mockCategoriesService.exists).toHaveBeenCalledWith(categoryId);
+    expect(expenseModelMock.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
   it('should throw NotFoundException when updating non-existing expense', async () => {
     expenseModelMock.findByIdAndUpdate.mockReturnValue(mockQuery(null));
 
@@ -212,14 +281,34 @@ describe('ExpensesService', () => {
       NotFoundException,
     );
   });
+  it('should update expense category when category exists', async () => {
+    const id = '507f1f77bcf86cd799439011';
+    const categoryId = '507f1f77bcf86cd799439099';
 
-  it('should throw NotFoundException for non-existing expense', async () => {
-    const nonExistingId = '507f1f77bcf86cd799439099';
+    const document = {
+      ...createMockExpense(),
+      categoryId: new Types.ObjectId(categoryId),
+    };
 
-    expenseModelMock.findById.mockReturnValue(mockQuery(null));
+    expenseModelMock.findByIdAndUpdate.mockReturnValue(mockQuery(document));
 
-    await expect(service.findOne(nonExistingId)).rejects.toThrow(
-      NotFoundException,
+    const result = await service.update(id, { categoryId });
+
+    expect(mockCategoriesService.exists).toHaveBeenCalledWith(categoryId);
+
+    expect(expenseModelMock.findByIdAndUpdate).toHaveBeenCalledWith(
+      id,
+      {
+        $set: {
+          categoryId: new Types.ObjectId(categoryId),
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
     );
+
+    expect(result.categoryId).toBe(categoryId);
   });
 });
